@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    # Changed database name to finedge
+    url: jdbc:postgresql://account-db:5432/finedge
+    username: user
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  security:
+    oauth2:
+      client:
+        registration:
+          piggymetrics:
+            client-id: account-service
+            client-secret: ${ACCOUNT_SERVICE_PASSWORD}
+            authorization-grant-type: client_credentials
+            scope: server
+        provider:
+          piggymetrics:
+            token-uri: http://auth-service:5000/uaa/oauth/token

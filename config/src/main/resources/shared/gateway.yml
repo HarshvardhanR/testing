@@ -1,0 +1,14 @@
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: auth-service
+          uri: http://auth-service:5000
+          predicates:
+            - Path=/uaa/**
+        - id: account-service
+          uri: http://account-service:6000
+          predicates:
+            - Path=/accounts/**
+server:
+  port: 4000

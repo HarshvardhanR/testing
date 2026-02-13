@@ -1,0 +1,17 @@
+spring:
+  profiles:
+    active: native
+  config:
+    import: "optional:file:../.env[.properties]" # ADD THIS LINE
+  cloud:
+    config:
+      server:
+        native:
+          search-locations: classpath:/shared
+  security:
+    user:
+      name: user
+      password: ${CONFIG_SERVICE_PASSWORD}
+
+server:
+  port: 8888

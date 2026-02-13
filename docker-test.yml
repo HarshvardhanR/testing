@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  # --- DATABASES ---
+  account-db:
+    image: postgres:15-alpine
+    container_name: account-db
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=finedge
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d finedge"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  auth-db:
+    image: mongo:latest
+    container_name: auth-db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=user
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD}
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- INFRASTRUCTURE ---
+
+  config-service:
+    build: ./config
+    container_name: config-service
+    ports:
+      - "8888:8888"
+    depends_on:
+      account-db:
+        condition: service_healthy
+      auth-db:
+        condition: service_healthy
+    environment:
+      - SPRING_PROFILES_ACTIVE=native
+      - SPRING_SECURITY_USER_NAME=user
+      - SPRING_SECURITY_USER_PASSWORD=${CONFIG_SERVICE_PASSWORD}
+      - SPRING_CLOUD_CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS=file:/config
+    volumes:
+      - ./config/src/main/resources/shared:/config
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://user:${CONFIG_SERVICE_PASSWORD}@localhost:8888/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # --- SERVICES ---
+
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    depends_on:
+      config-service:
+        condition: service_healthy
+      auth-db:
+        condition: service_healthy
+    environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://user:${CONFIG_SERVICE_PASSWORD}@config-service:8888
+      - CONFIG_SERVICE_PASSWORD=${CONFIG_SERVICE_PASSWORD}
+      # FORCING MONGODB OVERRIDES (Bypasses Config Server Issues)
+      - SPRING_DATA_MONGODB_HOST=auth-db
+      - SPRING_DATA_MONGODB_PORT=27017
+      - SPRING_DATA_MONGODB_DATABASE=finedge
+      - SPRING_DATA_MONGODB_USERNAME=user
+      - SPRING_DATA_MONGODB_PASSWORD=${MONGODB_PASSWORD}
+      - SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE=admin
+      # SECRETS
+      - ACCOUNT_SERVICE_PASSWORD=${ACCOUNT_SERVICE_PASSWORD}
+      - STATISTICS_SERVICE_PASSWORD=${STATISTICS_SERVICE_PASSWORD}
+      - NOTIFICATION_SERVICE_PASSWORD=${NOTIFICATION_SERVICE_PASSWORD}
+    ports:
+      - "5000:8080"
+    restart: on-failure
+
+  account-service:
+    build: ./account-service
+    container_name: account-service
+    depends_on:
+      config-service:
+        condition: service_healthy
+      account-db:
+        condition: service_healthy
+    environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://user:${CONFIG_SERVICE_PASSWORD}@config-service:8888
+      - CONFIG_SERVICE_PASSWORD=${CONFIG_SERVICE_PASSWORD}
+      # FORCING POSTGRES OVERRIDES
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://account-db:5432/finedge
+      - SPRING_DATASOURCE_USERNAME=user
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - ACCOUNT_SERVICE_PASSWORD=${ACCOUNT_SERVICE_PASSWORD}
+    ports:
+      - "6000:8080"
+    restart: on-failure

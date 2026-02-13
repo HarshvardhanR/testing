@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: notification-service
+  # This replaces the bootstrap logic
+  config:
+    import: "optional:configserver:http://config:8888"
+  cloud:
+    config:
+      fail-fast: true
+      username: user
+      password: ${CONFIG_SERVICE_PASSWORD}
