@@ -1,17 +1,13 @@
 spring:
-  datasource:
-    # Changed database name to finedge
-    url: jdbc:postgresql://account-db:5432/finedge
-    username: user
-    password: ${POSTGRES_PASSWORD}
-    driver-class-name: org.postgresql.Driver
-
-  jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+  data:
+    mongodb:
+      # Host must match the container name in docker-compose
+      host: account-mongodb 
+      port: 27017
+      database: piggymetrics
+      # If you set credentials in your mongo container, uncomment these:
+      # username: user
+      # password: ${MONGODB_PASSWORD}
 
   security:
     oauth2:

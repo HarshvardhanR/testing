@@ -1,22 +1,16 @@
 package com.piggymetrics.account.domain;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
-import org.hibernate.validator.constraints.Length;
+import jakarta.validation.constraints.Size;
 
-@Entity
-@Table(name = "users")
 public class User {
 
-    @Id // The username serves as the primary key here
     @NotNull
-    @Length(min = 3, max = 20)
+    @Size(min = 3, max = 20)
     private String username;
 
     @NotNull
-    @Length(min = 6, max = 80) // Increased max length because encoded passwords are long
+    @Size(min = 6, max = 80) // Increased to 80 to accommodate hashed passwords if needed
     private String password;
 
     public String getUsername() {
