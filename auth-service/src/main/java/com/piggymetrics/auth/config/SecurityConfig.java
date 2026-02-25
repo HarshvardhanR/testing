@@ -14,11 +14,13 @@ import com.nimbusds.jose.proc.SecurityContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -38,6 +40,7 @@ import org.springframework.security.oauth2.server.authorization.settings.ClientS
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 @Configuration
 public class SecurityConfig {
@@ -46,39 +49,46 @@ public class SecurityConfig {
     @Bean
     @Order(1)
     public SecurityFilterChain authServerSecurityFilterChain(HttpSecurity http) throws Exception {
-        // Apply default OAuth2 security (endpoints like /oauth2/authorize, /oauth2/token)
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
 
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
             .oidc(Customizer.withDefaults()); // Enable OpenID Connect 1.0
 
         http
-            // Redirect to the login page when not authenticated from the authorization endpoint
             .exceptionHandling((exceptions) -> exceptions
-                .authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login"))
+                .defaultAuthenticationEntryPointFor(
+                    new LoginUrlAuthenticationEntryPoint("/login"),
+                    new AntPathRequestMatcher("/**")
+                )
             )
-            // Accept access tokens for User Info and/or Client Registration
             .oauth2ResourceServer((resourceServer) -> resourceServer
                 .jwt(Customizer.withDefaults()));
 
         return http.build();
     }
 
-    // ================= 2. DEFAULT FILTER CHAIN (FOR LOGIN) =================
+    // ================= 2. DEFAULT FILTER CHAIN =================
     @Bean
     @Order(2)
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
         http
+            // Disable CSRF to allow the Account Service to POST registration data
+            .csrf(AbstractHttpConfigurer::disable) 
+            
             .authorizeHttpRequests((authorize) -> authorize
+                // Allow anyone to register a new user
+                .requestMatchers(HttpMethod.POST, "/users").permitAll()
+                // Require authentication for everything else
                 .anyRequest().authenticated()
             )
-            // Form login handles the rendering of the login page from the Auth Server filter chain
+            // Enable JWT validation for Resource Server requests (e.g., GET /users/current)
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
             .formLogin(Customizer.withDefaults());
 
         return http.build();
     }
 
-    // ================= 3. USERS (In-Memory) =================
+    // ================= 3. USERS (In-Memory for Testing) =================
     @Bean
     public UserDetailsService userDetailsService(PasswordEncoder passwordEncoder) {
         UserDetails user = User.withUsername("testuser")
@@ -102,10 +112,10 @@ public class SecurityConfig {
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-                .redirectUri("http://localhost/uaa/login/oauth2/code/browser")
+                // CLEANED: Removed /uaa/ from the redirect URI
+                .redirectUri("http://localhost/login/oauth2/code/browser")
                 .scope(OidcScopes.OPENID)
                 .scope("ui")
-                // PKCE is now configured via ClientSettings
                 .clientSettings(ClientSettings.builder()
                         .requireProofKey(true) 
                         .build())
@@ -134,7 +144,7 @@ public class SecurityConfig {
             keyPairGenerator.initialize(2048);
             return keyPairGenerator.generateKeyPair();
         } catch (Exception ex) {
-            throw new IllegalStateException(ex);
+            throw new IllegalStateException("Failed to generate RSA key pair", ex);
         }
     }
 
@@ -146,7 +156,8 @@ public class SecurityConfig {
     @Bean
     public AuthorizationServerSettings authorizationServerSettings() {
         return AuthorizationServerSettings.builder()
-                .issuer("http://localhost:5000/uaa")
+                // CLEANED: Removed /uaa from the issuer URL
+                .issuer("http://localhost:5000")
                 .build();
     }
 

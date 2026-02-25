@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
 
@@ -15,20 +16,35 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 @EnableWebSecurity
 public class ResourceServerConfig {
 
+    // @Bean
+    // public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    //     http
+    //         .csrf(csrf -> csrf.disable())
+    //         // 1. Ensure the app doesn't try to create a session
+    //         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+    //         .authorizeHttpRequests(auth -> auth
+    //             // 2. Permit the root and empty paths for registration
+    //             .requestMatchers(HttpMethod.POST, "/", "").permitAll()
+    //             // 3. Permit internal error handling (Essential in Spring Boot 3)
+    //             .requestMatchers("/error", "/error/**").permitAll()
+    //             // 4. Require auth for everything else
+    //             .anyRequest().authenticated()
+    //         )
+    //         // 5. Configure the Resource Server
+    //         .oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults()));
+
+    //     return http.build();
+    // }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable()) 
+            .csrf(csrf -> csrf.disable()) // Disable CSRF for the POST request
             .authorizeHttpRequests(auth -> auth
-                // Allow registration (POST /)
-                .requestMatchers(HttpMethod.POST, "/").permitAll()
-                // Allow Demo (GET /demo)
-                .requestMatchers(HttpMethod.GET, "/demo").permitAll()
-                // Require authentication for everything else (like /current)
-                .anyRequest().authenticated()
-            )
-            .oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults()));
-
+                // The 'anyRequest().permitAll()' is for testing only 
+                // to ensure the 401 isn't a networking/Docker issue
+                .anyRequest().permitAll() 
+            );
         return http.build();
     }
 

@@ -1,0 +1,24 @@
+db.accounts.find().pretty()
+docker exec account-mongodb ls /docker-entrypoint-initdb.d/
+docker exec account-mongodb ls /docker-entrypoint-initdb.d/;
+docker exec account-mongodb ls /docker-entrypoint-initdb.d/
+show collections
+use findedge
+show dbs
+EOF;
+EOF
+);
+    { upsert: true }
+    { \$set: { "note": "demo note", "expenses": [], "incomes": [], "saving": {} } },
+    { "_id": "demo" },
+db.accounts.updateOne(
+docker exec -i account-mongodb mongosh -u user -p --authenticationDatabase admin finedge <<EOF
+db.accounts.find()
+db.accounts.find().pretty();
+show collections
+db.accounts.find().pretty();
+use findedge
+finedge.accounts.find().pretty();
+db.accounts.find().pretty();
+db.accounts.find().pretty()
+show dbs

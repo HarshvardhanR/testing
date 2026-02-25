@@ -3,11 +3,8 @@ spring:
     name: statistics-service
   data:
     mongodb:
-      host: statistics-mongodb
-      port: 27017
-      database: piggymetrics
-      username: user
-      password: ${MONGODB_PASSWORD}
+      # Updated to URI for better authSource handling
+      uri: mongodb://user:${MONGODB_PASSWORD}@statistics-mongodb:27017/piggymetrics?authSource=admin
 
   security:
     oauth2:
@@ -20,12 +17,13 @@ spring:
             scope: server
         provider:
           statistics-service:
-            token-uri: http://auth-service:8080/uaa/oauth/token
+            # CLEANED: Removed /uaa
+            token-uri: http://auth-service:8080/oauth/token
       resourceserver:
         jwt:
-          issuer-uri: http://auth-service:8080/uaa/oauth/token
+          # CLEANED: Removed /uaa
+          issuer-uri: http://auth-service:8080/
 
-# Set port to 8080 to match your Gateway's uri: http://statistics-service:8080
 server:
   port: 8080
 

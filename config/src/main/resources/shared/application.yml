@@ -2,10 +2,13 @@ logging:
   level:
     org.springframework.security: INFO
 
-# Kubernetes replaces Eureka
+
+# Modern OAuth2 Resource Server setting - CLEANED
 spring:
   rabbitmq:
     host: rabbitmq
-
-# Modern OAuth2 Resource Server setting
-spring.security.oauth2.resourceserver.jwt.jwk-set-uri: http://auth-service:5000/uaa/.well-known/jwks.json
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://auth-service:8080/.well-known/jwks.json

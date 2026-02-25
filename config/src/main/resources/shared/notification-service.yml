@@ -3,11 +3,8 @@ spring:
     name: notification-service
   data:
     mongodb:
-      host: notification-mongodb
-      port: 27017
-      database: piggymetrics
-      username: user
-      password: ${MONGODB_PASSWORD}
+      # Suggestion: Switch to URI format if you need authSource=admin like Account Service
+      uri: mongodb://user:${MONGODB_PASSWORD}@notification-mongodb:27017/piggymetrics?authSource=admin
   
   security:
     oauth2:
@@ -20,24 +17,10 @@ spring:
             scope: server
         provider:
           notification-service:
-            token-uri: http://auth-service:8080/uaa/oauth/token
+            # CLEANED: Removed /uaa
+            token-uri: http://auth-service:8080/oauth/token
       resourceserver:
         jwt:
-          issuer-uri: http://auth-service:8080/uaa/oauth/token
-
-  mail:
-    host: smtp.gmail.com
-    port: 465
-    username: dev-user
-    password: dev-password
-    properties:
-      mail.smtp.auth: true
-      mail.smtp.ssl.enable: true
-
-server:
-  port: 8080 # Changed from 8000 to match Gateway logic
-
-remind:
-  cron: 0 0 0 * * *
-backup:
-  cron: 0 0 12 * * *
+          # CLEANED: Removed /uaa
+          # Note: Usually this points to the base issuer URL, not the token endpoint
+          issuer-uri: http://auth-service:8080/

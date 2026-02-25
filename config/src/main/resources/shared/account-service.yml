@@ -1,13 +1,7 @@
 spring:
   data:
     mongodb:
-      # Host must match the container name in docker-compose
-      host: account-mongodb 
-      port: 27017
-      database: piggymetrics
-      # If you set credentials in your mongo container, uncomment these:
-      # username: user
-      # password: ${MONGODB_PASSWORD}
+      uri: mongodb://user:${MONGODB_PASSWORD}@account-mongodb:27017/finedge?authSource=admin
 
   security:
     oauth2:
@@ -20,4 +14,5 @@ spring:
             scope: server
         provider:
           piggymetrics:
-            token-uri: http://auth-service:5000/uaa/oauth/token
+
+            token-uri: http://auth-service:8080/oauth/token

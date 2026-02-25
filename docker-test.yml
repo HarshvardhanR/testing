@@ -1,13 +1,18 @@
 version: '3.8'
 
+networks:
+  finedge-network:
+    name: finedge-network
+
 services:
   # --- DATABASES ---
   account-mongodb:
     image: mongo:latest
     container_name: account-mongodb
+    networks: [finedge-network]
     environment:
       - MONGO_INITDB_ROOT_USERNAME=user
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD}
+      - MONGO_INITDB_ROOT_PASSWORD=mongo_db_admin_pass
       - MONGO_INITDB_DATABASE=finedge
     ports:
       - "27017:27017"
@@ -20,13 +25,13 @@ services:
       timeout: 5s
       retries: 5
 
-  # 2. MOVED TO POSTGRES: This is now for the Auth Service
   auth-postgres:
     image: postgres:15-alpine
     container_name: auth-postgres
+    networks: [finedge-network]
     environment:
       - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_PASSWORD=finedge_sql_secure_88
       - POSTGRES_DB=finedge
     ports:
       - "5432:5432"
@@ -39,146 +44,94 @@ services:
       timeout: 5s
       retries: 5
 
-  statistics-mongodb:
-    image: mongo:latest
-    container_name: statistics-mongodb
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=user
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD}
-    # No need to expose ports 27017 to host if only services use it, 
-    # but we can use unique host ports if you want to inspect them.
-    ports:
-      - "27018:27017" 
-    healthcheck:
-      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-
-  notification-mongodb:
-    image: mongo:latest
-    container_name: notification-mongodb
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=user
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD}
-    ports:
-      - "27019:27017"
-    healthcheck:
-      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
   # --- INFRASTRUCTURE ---
   config-service:
     build: ./config
     container_name: config-service
+    networks: [finedge-network]
     ports:
       - "8888:8888"
     depends_on:
-      account-mongodb:
-        condition: service_healthy
-      auth-postgres:
-        condition: service_healthy
+      account-mongodb: { condition: service_healthy }
+      auth-postgres: { condition: service_healthy }
     environment:
       - SPRING_PROFILES_ACTIVE=native
       - SPRING_SECURITY_USER_NAME=user
-      - SPRING_SECURITY_USER_PASSWORD=${CONFIG_SERVICE_PASSWORD}
+      - SPRING_SECURITY_USER_PASSWORD=config_secret_99
       - SPRING_CLOUD_CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS=file:/config
     volumes:
       - ./config/src/main/resources/shared:/config
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://user:${CONFIG_SERVICE_PASSWORD}@localhost:8888/actuator/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://user:config_secret_99@localhost:8888/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 10
 
-  # --- GATEWAY (Entry Point: Port 80) ---
   gateway:
     build: ./gateway
     container_name: gateway
-    ports:
-      - "80:4000"
+    networks: [finedge-network]
     depends_on:
-      config-service:
-        condition: service_healthy
+      config-service: { condition: service_healthy }
     environment:
-      # Matches the config-service name for DNS resolution
-      - SPRING_CONFIG_IMPORT=optional:configserver:http://user:${CONFIG_SERVICE_PASSWORD}@config-service:8888
-      - CONFIG_SERVICE_PASSWORD=${CONFIG_SERVICE_PASSWORD}
-      - SPRING_CLOUD_CONFIG_FAIL_FAST=false
-      - SPRING_CLOUD_CONFIG_RETRY_MAX_ATTEMPTS=20
-      - SPRING_CLOUD_CONFIG_RETRY_INITIAL_INTERVAL=3000
-    restart: on-failure
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://user:config_secret_99@config-service:8888
+    ports:
+      - "4000:4000"
 
   # --- MICROSERVICES ---
   auth-service:
     build: ./auth-service
     container_name: auth-service
+    networks: [finedge-network]
     depends_on:
-      auth-postgres:
-        condition: service_healthy
+      auth-postgres: { condition: service_healthy }
+      config-service: { condition: service_healthy }
     environment:
-      - SPRING_CONFIG_IMPORT=optional:configserver:http://user:${CONFIG_SERVICE_PASSWORD}@config-service:8888
-      - CONFIG_SERVICE_PASSWORD=${CONFIG_SERVICE_PASSWORD}
-      # AUTH NOW USES POSTGRES
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://user:config_secret_99@config-service:8888
       - SPRING_DATASOURCE_URL=jdbc:postgresql://auth-postgres:5432/finedge
       - SPRING_DATASOURCE_USERNAME=user
-      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
-      - ACCOUNT_SERVICE_PASSWORD=${ACCOUNT_SERVICE_PASSWORD}
+      - SPRING_DATASOURCE_PASSWORD=finedge_sql_secure_88
+      - ACCOUNT_SERVICE_PASSWORD=account_client_secret_v1
     ports:
       - "5000:8080"
 
   account-service:
     build: ./account-service
     container_name: account-service
+    networks: [finedge-network]
     depends_on:
-      account-mongodb:
-        condition: service_healthy
+      account-mongodb: { condition: service_healthy }
+      config-service: { condition: service_healthy }
     environment:
-      - SPRING_CONFIG_IMPORT=optional:configserver:http://user:${CONFIG_SERVICE_PASSWORD}@config-service:8888
-      - CONFIG_SERVICE_PASSWORD=${CONFIG_SERVICE_PASSWORD}
-      # ACCOUNT NOW USES MONGODB
-      - SPRING_DATA_MONGODB_HOST=account-mongodb
-      - SPRING_DATA_MONGODB_PORT=27017
-      - SPRING_DATA_MONGODB_DATABASE=finedge
-      - SPRING_DATA_MONGODB_USERNAME=user
-      - SPRING_DATA_MONGODB_PASSWORD=${MONGODB_PASSWORD}
+      - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
+      - SPRING_CLOUD_CONFIG_USERNAME=user
+      - SPRING_CLOUD_CONFIG_PASSWORD=config_secret_99
+      - SPRING_CONFIG_IMPORT=configserver:http://config-service:8888
+      - AUTH_SERVICE_URL=http://auth-service:8080
+      - SPRING_DATA_MONGODB_URI=mongodb://user:mongo_db_admin_pass@account-mongodb:27017/finedge?authSource=admin
     ports:
       - "6000:8080"
 
   statistics-service:
     build: ./statistics-service
     container_name: statistics-service
+    networks: [finedge-network]
     depends_on:
-      config-service:
-        condition: service_healthy
-      statistics-mongodb:
-        condition: service_started
+      config-service: { condition: service_healthy }
     environment:
-      - SPRING_CONFIG_IMPORT=optional:configserver:http://user:${CONFIG_SERVICE_PASSWORD}@config-service:8888
-      - CONFIG_SERVICE_PASSWORD=${CONFIG_SERVICE_PASSWORD}
-      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
-      - STATISTICS_SERVICE_PASSWORD=${STATISTICS_SERVICE_PASSWORD}
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://user:config_secret_99@config-service:8888
+      - SPRING_DATA_MONGODB_URI=mongodb://user:mongo_db_admin_pass@statistics-mongodb:27017/piggymetrics?authSource=admin
     ports:
       - "7000:8080"
-    restart: on-failure
 
   notification-service:
     build: ./notification-service
     container_name: notification-service
+    networks: [finedge-network]
     depends_on:
-      config-service:
-        condition: service_healthy
-      notification-mongodb:
-        condition: service_started
+      config-service: { condition: service_healthy }
     environment:
-      - SPRING_CONFIG_IMPORT=optional:configserver:http://user:${CONFIG_SERVICE_PASSWORD}@config-service:8888
-      - CONFIG_SERVICE_PASSWORD=${CONFIG_SERVICE_PASSWORD}
-      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
-      - NOTIFICATION_SERVICE_PASSWORD=${NOTIFICATION_SERVICE_PASSWORD}
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://user:config_secret_99@config-service:8888
+      - SPRING_DATA_MONGODB_URI=mongodb://user:mongo_db_admin_pass@notification-mongodb:27017/piggymetrics?authSource=admin
     ports:
       - "8000:8080"
-    restart: on-failure

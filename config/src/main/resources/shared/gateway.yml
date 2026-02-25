@@ -7,10 +7,11 @@ spring:
           predicates:
             - Path=/
         
+        # CHANGED: /uaa/ is now /auth/
         - id: auth-service
           uri: http://auth-service:8080
           predicates:
-            - Path=/uaa/**
+            - Path=/auth/**
           filters:
             - StripPrefix=1
             
@@ -21,7 +22,6 @@ spring:
           filters:
             - StripPrefix=1
 
-        # --- NEW SERVICES ---
         - id: statistics-service
           uri: http://statistics-service:8080
           predicates:
